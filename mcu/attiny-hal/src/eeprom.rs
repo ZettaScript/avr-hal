@@ -2,7 +2,7 @@ pub use avr_hal_generic::eeprom::{EepromOps, OutOfBoundsError};
 
 pub type Eeprom = avr_hal_generic::eeprom::Eeprom<crate::Attiny, crate::pac::EEPROM>;
 
-#[cfg(feature = "attiny2313")]
+#[cfg(any(feature = "attiny402", feature = "attiny2313"))]
 avr_hal_generic::impl_eeprom_attiny! {
     hal: crate::Attiny,
     peripheral: crate::pac::EEPROM,

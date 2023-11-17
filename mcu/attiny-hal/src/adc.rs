@@ -19,14 +19,26 @@ pub enum ReferenceVoltage {
     Aref,
     /// Default reference voltage (default).
     AVcc,
+    /// Internal 0.55V reference.
+    #[cfg(feature = "attiny402")]
+    Internal0_55,
     /// Internal 1.1V reference.
     Internal1_1,
+    /// Internal 1.5V reference.
+    #[cfg(feature = "attiny402")]
+    Internal1_5,
+    /// Internal 2.5V reference.
+    #[cfg(feature = "attiny402")]
+    Internal2_5,
     /// Internal 2.56V reference.
     #[cfg(any(
         feature = "attiny85",
         feature = "attiny167",
     ))]
     Internal2_56,
+    /// Internal 4.3V reference.
+    #[cfg(feature = "attiny402")]
+    Internal4_3,
 }
 
 impl Default for ReferenceVoltage {
@@ -43,10 +55,20 @@ pub struct AdcSettings {
 }
 
 /// Check the [`avr_hal_generic::adc::Adc`] documentation.
+#[cfg(not(feature = "attiny402"))]
 pub type Adc<CLOCK> = avr_hal_generic::adc::Adc<crate::Attiny, crate::pac::ADC, CLOCK>;
 
+/// Check the [`avr_hal_generic::adc::Adc`] documentation.
+#[cfg(feature = "attiny402")]
+pub type Adc<CLOCK> = avr_hal_generic::adc::Adc<crate::Attiny, crate::pac::ADC0, CLOCK>;
+
 /// Check the [`avr_hal_generic::adc::Channel`] documentation.
+#[cfg(not(feature = "attiny402"))]
 pub type Channel = avr_hal_generic::adc::Channel<crate::Attiny, crate::pac::ADC>;
+
+/// Check the [`avr_hal_generic::adc::Channel`] documentation.
+#[cfg(feature = "attiny402")]
+pub type Channel = avr_hal_generic::adc::Channel<crate::Attiny, crate::pac::ADC0>;
 
 /// Additional channels
 ///
@@ -66,8 +88,11 @@ pub mod channel {
     pub struct Vbg;
     pub struct Gnd;
     pub struct Temperature;
+    #[cfg(feature = "attiny402")]
+    pub struct InternalReference;
 }
 
+#[cfg(not(feature = "attiny402"))]
 fn apply_clock(peripheral: &crate::pac::ADC, settings: AdcSettings) {
     peripheral.adcsra.write(|w| {
         w.aden().set_bit();
@@ -79,6 +104,21 @@ fn apply_clock(peripheral: &crate::pac::ADC, settings: AdcSettings) {
             ClockDivider::Factor32 => w.adps().prescaler_32(),
             ClockDivider::Factor64 => w.adps().prescaler_64(),
             ClockDivider::Factor128 => w.adps().prescaler_128(),
+        }
+    });
+}
+
+#[cfg(feature = "attiny402")]
+fn apply_clock(peripheral: &crate::pac::ADC0, settings: AdcSettings) {
+    peripheral.ctrlc.write(|w| {
+        match settings.clock_divider {
+            ClockDivider::Factor2 => w.presc().div2(),
+            ClockDivider::Factor4 => w.presc().div4(),
+            ClockDivider::Factor8 => w.presc().div8(),
+            ClockDivider::Factor16 => w.presc().div16(),
+            ClockDivider::Factor32 => w.presc().div32(),
+            ClockDivider::Factor64 => w.presc().div64(),
+            ClockDivider::Factor128 => w.presc().div128(),
         }
     });
 }
@@ -190,5 +230,46 @@ avr_hal_generic::impl_adc! {
         channel::Vbg: crate::pac::adc::admux::MUX_A::ADC_VBG,
         channel::Gnd: crate::pac::adc::admux::MUX_A::ADC_GND,
         channel::Temperature: crate::pac::adc::admux::MUX_A::TEMPSENS,
+    },
+}
+
+
+#[cfg(feature = "attiny402")]
+avr_hal_generic::impl_adc! {
+    hal: crate::Attiny,
+    peripheral: crate::pac::ADC0,
+    settings: AdcSettings,
+    apply_settings: |peripheral, settings| {
+        apply_clock(peripheral, settings);
+        if settings.ref_voltage == ReferenceVoltage::AVcc {
+            peripheral.ctrlc.write(|w| w.refsel().vddref());
+        } else {
+            peripheral.VREF.ctrla.write(|w| match settings.ref_voltage {
+                ReferenceVoltage::AVcc => unreachable!(),
+                ReferenceVoltage::Internal0_55 => w.adc0refsel()._0v55(),
+                ReferenceVoltage::Internal1_1 => w.adc0refsel()._1v1(),
+                ReferenceVoltage::Internal1_5 => w.adc0refsel()._1v5(),
+                ReferenceVoltage::Internal2_5 => w.adc0refsel()._2v5(),
+                ReferenceVoltage::Internal4_3 => w.adc0refsel()._4v34(),
+            });
+            peripheral.ctrlc.write(|w| w.refsel().intref());
+        }
+    },
+    channel_id: crate::pac::adc0::muxpos::MUXPOS_A,
+    set_channel: |peripheral, id| {
+        peripheral.muxpos.modify(|_, w| w.muxpos().variant(id));
+    },
+    pins: {
+        port::PA0: (crate::pac::adc0::muxpos::MUXPOS_A::AIN0),
+        port::PA1: (crate::pac::adc0::muxpos::MUXPOS_A::AIN1),
+        port::PA2: (crate::pac::adc0::muxpos::MUXPOS_A::AIN2),
+        port::PA3: (crate::pac::adc0::muxpos::MUXPOS_A::AIN3),
+        port::PA6: (crate::pac::adc0::muxpos::MUXPOS_A::AIN6),
+        port::PA7: (crate::pac::adc0::muxpos::MUXPOS_A::AIN7),
+    },
+    channels: {
+        channel::Gnd: crate::pac::adc0::muxpos::MUXPOS_A::GND,
+        channel::Temperature: crate::pac::adc0::muxpos::MUXPOS_A::TEMPSENSE,
+        channel::InternalReference: crate::pac::adc0::muxpos::MUXPOS_A::INTREF,
     },
 }

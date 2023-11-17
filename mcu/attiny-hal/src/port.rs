@@ -136,3 +136,19 @@ avr_hal_generic::impl_port_traditional! {
         pd7: PD7 = (crate::pac::PORTD, PORTD, 7, portd, pind, ddrd),
     }
 }
+
+#[cfg(feature = "attiny402")]
+avr_hal_generic::impl_port_traditional! {
+    enum Ports {
+        PORTA: (crate::pac::PORTA, out, in_, dir),
+    }
+
+    pub struct Pins {
+        pa0: PA0 = (crate::pac::PORTA, PORTA, 0, out, in_, dir),
+        pa1: PA1 = (crate::pac::PORTA, PORTA, 1, out, in_, dir),
+        pa2: PA2 = (crate::pac::PORTA, PORTA, 2, out, in_, dir),
+        pa3: PA3 = (crate::pac::PORTA, PORTA, 3, out, in_, dir),
+        pa6: PA6 = (crate::pac::PORTA, PORTA, 6, out, in_, dir),
+        pa7: PA7 = (crate::pac::PORTA, PORTA, 7, out, in_, dir),
+    }
+}
